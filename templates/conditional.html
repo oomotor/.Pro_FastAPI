@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Conditional Rendering</title>
+</head>
+<body>
+    <h1>Conditional Rendering Example</h1>
+    
+    {% if name == "FastAPI" %}
+        <p>Hello, FastAPI!</p>
+    {% else %}
+        <p>Hello, {{ name }}!</p>
+    {% endif %}
+</body>
+</html>
