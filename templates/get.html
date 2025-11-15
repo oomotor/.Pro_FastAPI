@@ -1,0 +1,18 @@
+<!-- templates/get.html -->
+{% extends "layout.html" %}
+
+{% block title %}GET Request{% endblock %}
+
+{% block content %}
+<h1>GETリクエスト</h1>
+
+<form action="/greet" method="get">
+    <label for="name">名前を入力してください:</label>
+    <input type="text" id="name" name="name">
+    <button type="submit">送信</button>
+</form>
+
+{% if name %}
+    <h2>こんにちは、{{ name }}さん！</h2>
+{% endif %}
+{% endblock %}

@@ -3,9 +3,12 @@ from fastapi.responses import HTMLResponse
 from pathlib import Path
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
+import math
+from starlette.staticfiles import
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request):
@@ -54,7 +57,42 @@ def read_fizzbuzz(request: Request, number: int):
 
 @app.get("/greet", response_class=HTMLResponse)
 def greet_user(request: Request, name: str):
-    return templates.TemplateResponse("get.html", {"reqest": request, "name": name})
+    return templates.TemplateResponse("get.html", {"request": request, "name": name})
+
+@app.get("/get")
+def check_prime(number: int):
+    """
+    numberというクエリパラメータを受け取り、素数判定の結果を返すAPIエンドポイント。
+    """
+
+    is_prime_result = is_prime(number)
+
+    # 判定結果を辞書形式で返す
+    return  {
+        "input_number": number,
+        "is_prime": is_prime_result,
+        "message": f"{number}は素数です。" if is_prime_result else f"{number}は素数ではありません。"
+    }
+
+
+
+
+
+def is_prime(number: int) -> bool:
+    """与えられた整数が素数であるかを判定する関数"""
+    if number <= 1:
+        return False
+    if number == 2:
+        return True
+    if number % 2 == 0:
+        return False
+
+    # 3からsqrt(number)までの奇数が割り切れるかチェック
+    for i in range(3, math.isqrt(number) + 1, 2):
+        if number % i == 0:
+            return False
+
+    return True
 
 
 if __name__ == "__main__":
