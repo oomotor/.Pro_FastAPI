@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
 import math
-from starlette.staticfiles import
+from starlette.staticfiles import StaticFiles
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
@@ -93,6 +93,35 @@ def is_prime(number: int) -> bool:
             return False
 
     return True
+
+@app.get("/prime_check", response_class=HTMLResponse)
+def prime_checker_page(request: Request, number: int | None = None):
+    result_message = None
+
+    # numberがクエリパラメータとして渡された場合のみ判定処理を行う
+    if number is not None:
+        if number <= 0:
+            message = f"**{number}**は正の整数ではありません。判定できません"
+            result_message = f'<span style="color: red;">{message}</span>'
+        else:
+            is_prime_result = is_prime(number)
+
+            if is_prime_result:
+                message = f"**{number}** は**素数**です！"
+                result_message = f'<span style="color: green; font-weight: bold;">{message}</span>'
+            else:
+                message = f"**{number}** は**素数ではありません**。"
+                result_message = f'<span style="color: red;">{message}</span>'
+
+    # テンプレートをレンダリングして返す
+    return templates.TemplateResponse(
+        "prime_checker.html",
+        {
+            "request": request,
+            "result_message": result_message,
+            "input_number": number
+        }
+    )
 
 
 if __name__ == "__main__":
