@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
 from pathlib import Path
 from fastapi.templating import Jinja2Templates
@@ -10,9 +10,29 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# ユーザー情報を保存するためのリスト（最大3人まで）
+user_data = []
+
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request):
-    return templates.TemplateResponse("get.html", {"request": request})
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/form", response_class=HTMLResponse)
+def form_get(request: Request):
+    return templates.TemplateResponse("post.html", {"request": request})
+
+@app.post("/form", response_class=HTMLResponse)
+def form_post(request: Request, name: str = Form(...), age: int = Form(...)):
+    # 新しいユーザーをリストに追加
+    user_data.append({"name": name, "age": age})
+
+    # 最大3人までのユーザー情報を保持
+    if len(user_data) > 5:
+        user_data.pop(0)  # 先頭のユーザーを削除
+
+    return templates.TemplateResponse("post.html", {"request": request, "users": user_data})
+
+
 
 @app.get("/dot-pro")
 def read_dot_pro():
@@ -122,6 +142,7 @@ def prime_checker_page(request: Request, number: int | None = None):
             "input_number": number
         }
     )
+
 
 
 if __name__ == "__main__":

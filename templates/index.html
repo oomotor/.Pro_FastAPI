@@ -2,10 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>My Static Page</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>index Page</title>
 </head>
 <body>
-    <h1>Hello, World!</h1>
-    <p>Welcome to my static page served by FastAPI.</p>
+    <h1>index Page</h1>
+
+    <!-- テンプレートの継承のためのブロックを追加 -->
+    {% block content %}
+    {% endblock %}
 </body>
 </html>
