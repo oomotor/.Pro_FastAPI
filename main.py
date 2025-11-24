@@ -1,59 +1,143 @@
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, Form, Depends, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pathlib import Path
 from fastapi.templating import Jinja2Templates
-from fastapi import Request
 import math
 from starlette.staticfiles import StaticFiles
+from sqlalchemy.orm import Session  # Sessionを追加
+from sqlalchemy import desc
+from starlette.status import HTTP_303_SEE_OTHER
+
+
+# ★★★ データベース関連のインポート（models.pyから） ★★★
+# models.pyに記述されているUser, SessionLocal, Baseをインポート
+from models import User, SessionLocal, Base, engine
+
+# データベースにテーブルを作成
+# models.pyで定義したBaseのメタデータを使って、全てのテーブルを作成します
+Base.metadata.create_all(bind=engine)
+
+
+# --------------------
+# データベース接続のための依存性注入関数
+# --------------------
+def get_db():
+    """リクエストごとに新しいDBセッションを提供し、終了時にセッションをクローズする"""
+    db = SessionLocal()
+    try:
+        # yieldでセッションを提供（依存性注入）
+        yield db
+    finally:
+        # 処理が完了したらセッションを閉じる
+        db.close()
+
+
+# --------------------
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# ユーザー情報を保存するためのリスト（最大3人まで）
-user_data = []
+
+# 以前のメモリ内リスト user_data は削除
 
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
+
+# ----------------------------------------------------
+# ★★★ DB対応版 ユーザー管理エンドポイント ★★★
+# ----------------------------------------------------
+
+# 共通処理用の関数を定義
+def render_user_list(request: Request, db: Session):
+    users = db.query(User).order_by(User.id.desc()).all() # 1.降順で取得
+    count = len(users)           # 2.計算
+    # 3.表示
+    return templates.TemplateResponse("post.html", {
+        "request": request,
+        "users": users,
+        "user_count": count
+    })
+
+
+# /form (GET): ユーザー登録フォームとユーザー一覧を表示
 @app.get("/form", response_class=HTMLResponse)
-def form_get(request: Request):
-    return templates.TemplateResponse("post.html", {"request": request})
+def show_form(request: Request, db: Session = Depends(get_db)):
+    """ユーザー登録フォームと、DBから取得した全ユーザー一覧を表示"""
+    # テンプレートにユーザー一覧を渡す
+    return render_user_list(request, db)
 
-@app.post("/form", response_class=HTMLResponse)
-def form_post(request: Request, name: str = Form(...), age: int = Form(...)):
-    # 新しいユーザーをリストに追加
-    user_data.append({"name": name, "age": age})
+# /users/ (POST): フォームデータを受け取り、DBに登録
+@app.post("/users/", response_class=HTMLResponse)
+def add_user(
+        request: Request,
+        name: str = Form(...),
+        age: int = Form(...),
+        hobby: str = Form(...),
+        db: Session = Depends(get_db)  # DBセッションを依存性注入
+):
+    """フォームデータを受け取り、新しいユーザーをDBに登録する"""
+    # 新しいUserオブジェクトを作成
+    user = User(name=name, age=age, hobby=hobby)
 
-    # 最大3人までのユーザー情報を保持
-    if len(user_data) > 5:
-        user_data.pop(0)  # 先頭のユーザーを削除
+    # データベースに追加・コミット
+    db.add(user)
+    db.commit()
+    #return render_user_list(request, db)
+    # 直接HTMLを返さず、「/form に移動して」と命令する
+    return RedirectResponse(url="/form", status_code=HTTP_303_SEE_OTHER)
 
-    return templates.TemplateResponse("post.html", {"request": request, "users": user_data})
+# ユーザー情報の削除
+@app.post("/users/delete/{user_id}", response_class=HTMLResponse)
+def delete_user(request: Request, user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="ユーザーが見つかりません")
+
+    db.delete(user)
+    db.commit()
+
+    # users = db.query(User).all()  # 更新後のユーザー一覧を取得
+    #return render_user_list(request, db)
+    return RedirectResponse(url="/form", status_code=HTTP_303_SEE_OTHER)
 
 
+# ----------------------------------------------------
+# 既存のその他のエンドポイント（変更なし）
+# ----------------------------------------------------
+
+# 以前の /form (GET) が /form (DB対応) に置き換わっています
+# 以前の /form (POST) は /users/ (DB対応) に置き換わっています
 
 @app.get("/dot-pro")
 def read_dot_pro():
     return "Hello, dot-pro!"
 
+
 @app.get("/profile")
 def read_profile():
     return "Hello, Ryozo!"
 
+
 @app.get("/index", response_class=HTMLResponse)
 def read_html():
     html_path = Path("templates/index.html")
+    if not html_path.exists():
+        return HTMLResponse("<h1>Error: templates/index.html not found</h1>", status_code=404)
     return html_path.read_text(encoding="utf-8")
+
 
 @app.get("/hello", response_class=HTMLResponse)
 def read_hello(request: Request):
     return templates.TemplateResponse("hello.html", {"request": request, "name": "FastAPI"})
 
+
 @app.get("/conditional", response_class=HTMLResponse)
 def read_conditional(request: Request, name: str = "Guest"):
     return templates.TemplateResponse("conditional.html", {"request": request, "name": name})
+
 
 @app.get("/fizzbuzz", response_class=HTMLResponse)
 def read_fizzbuzz(request: Request, number: int):
@@ -75,50 +159,39 @@ def read_fizzbuzz(request: Request, number: int):
         }
     )
 
+
 @app.get("/greet", response_class=HTMLResponse)
 def greet_user(request: Request, name: str):
     return templates.TemplateResponse("get.html", {"request": request, "name": name})
 
+
 @app.get("/get")
 def check_prime(number: int):
-    """
-    numberというクエリパラメータを受け取り、素数判定の結果を返すAPIエンドポイント。
-    """
-
     is_prime_result = is_prime(number)
-
-    # 判定結果を辞書形式で返す
-    return  {
+    return {
         "input_number": number,
         "is_prime": is_prime_result,
         "message": f"{number}は素数です。" if is_prime_result else f"{number}は素数ではありません。"
     }
 
 
-
-
-
 def is_prime(number: int) -> bool:
-    """与えられた整数が素数であるかを判定する関数"""
     if number <= 1:
         return False
     if number == 2:
         return True
     if number % 2 == 0:
         return False
-
-    # 3からsqrt(number)までの奇数が割り切れるかチェック
     for i in range(3, math.isqrt(number) + 1, 2):
         if number % i == 0:
             return False
-
     return True
+
 
 @app.get("/prime_check", response_class=HTMLResponse)
 def prime_checker_page(request: Request, number: int | None = None):
     result_message = None
 
-    # numberがクエリパラメータとして渡された場合のみ判定処理を行う
     if number is not None:
         if number <= 0:
             message = f"**{number}**は正の整数ではありません。判定できません"
@@ -133,7 +206,6 @@ def prime_checker_page(request: Request, number: int | None = None):
                 message = f"**{number}** は**素数ではありません**。"
                 result_message = f'<span style="color: red;">{message}</span>'
 
-    # テンプレートをレンダリングして返す
     return templates.TemplateResponse(
         "prime_checker.html",
         {
@@ -144,7 +216,7 @@ def prime_checker_page(request: Request, number: int | None = None):
     )
 
 
-
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

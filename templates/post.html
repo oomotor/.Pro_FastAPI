@@ -4,20 +4,29 @@
 {% block content %}
 <h1>POSTリクエスト</h1>
 
-<form action="/form" method="post">
+<form action="/users/" method="post">
     <label for="name">名前:</label>
     <input type="text" id="name" name="name">
 
     <label for="age">年齢:</label>
     <input type="number" id="age" name="age">
 
+    <label for="hobby">趣味:</label>
+    <input type="text" id="hobby" name="hobby">
+
     <button type="submit">送信</button>
 </form>
 
-<h2>ユーザー一覧（最大3人）</h2>
+<h2>ユーザー一覧（現在のユーザー数: {{user_count}}名）</h2>
 <ul>
 {% for user in users %}
-    <li>{{ user.name }}さん、{{ user.age }}歳</li>
+    <li>
+        {{ user.name }}さん、{{ user.age }}歳。趣味は{{ user.hobby }}
+        <!-- 削除ボタン -->
+        <form action="/users/delete/{{ user.id }}" method="post" style="display:inline;">
+            <button type="submit">削除</button>
+        </form>
+    </li>
 {% endfor %}
 </ul>
 {% endblock %}
